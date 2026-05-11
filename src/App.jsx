@@ -489,7 +489,7 @@ function VisionCategory({ cat, data, onSave, onBack }) {
   const [text, setText] = useState(data.text || "");
   const [saved, setSaved] = useState(false);
   const [v, setV] = useState(false);
-  useEffect(() => setTimeout(() => setV(true), 40), []);
+  useEffect(() => { const t = setTimeout(() => setV(true), 40); return () => clearTimeout(t); }, []);
 
   function handleUpload(imgs) { const next = [...images, ...imgs].slice(0, 6); setImages(next); onSave({ images: next, text }); }
   function handleDelete(idx) { const next = images.filter((_, i) => i !== idx); setImages(next); onSave({ images: next, text }); }
@@ -541,7 +541,7 @@ function VisionCategory({ cat, data, onSave, onBack }) {
 function VisionBoard({ board, onSave }) {
   const [active, setActive] = useState(null);
   const [v, setV] = useState(false);
-  useEffect(() => setTimeout(() => setV(true), 40), []);
+  useEffect(() => { const t = setTimeout(() => setV(true), 40); return () => clearTimeout(t); }, []);
 
   if (active) return <VisionCategory cat={active} data={board[active.id] || {}} onSave={d => onSave(active.id, d)} onBack={() => setActive(null)} />;
 
@@ -604,7 +604,7 @@ function VisionBoard({ board, onSave }) {
 
 function Home({ egsHistory, processHistory, visionBoard, onStartCheckin, onOpenProcess, onOpenVision }) {
   const [v, setV] = useState(false);
-  useEffect(() => setTimeout(() => setV(true), 40), []);
+  useEffect(() => { const t = setTimeout(() => setV(true), 40); return () => clearTimeout(t); }, []);
 
   const todayEntry = egsHistory[todayKey()];
   const egsLevel = todayEntry?.level;
@@ -727,7 +727,7 @@ function Home({ egsHistory, processHistory, visionBoard, onStartCheckin, onOpenP
 function Library({ egsLevel, onOpenProcess }) {
   const [filter, setFilter] = useState("all");
   const [v, setV] = useState(false);
-  useEffect(() => setTimeout(() => setV(true), 40), []);
+  useEffect(() => { const t = setTimeout(() => setV(true), 40); return () => clearTimeout(t); }, []);
 
   const filtered = filter === "all" ? PROCESSES : PROCESSES.filter(p => p.tiers.includes(filter));
   const chips = [["all", "All", "#F5C842"], ["high", "Thriving", "#F7D76B"], ["mid", "Reaching", "#79C99E"], ["low", "Navigating", "#9DAAB5"]];
@@ -765,7 +765,7 @@ function Library({ egsLevel, onOpenProcess }) {
 
 function Journal({ processHistory, egsHistory }) {
   const [v, setV] = useState(false);
-  useEffect(() => setTimeout(() => setV(true), 40), []);
+  useEffect(() => { const t = setTimeout(() => setV(true), 40); return () => clearTimeout(t); }, []);
   const allEntries = [
     ...processHistory.map(h => ({ ...h, _type: "process" })),
     ...Object.entries(egsHistory).map(([k, e]) => ({ ...e, _type: "egs", dateKey: k })),
