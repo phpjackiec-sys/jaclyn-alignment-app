@@ -1,4 +1,9 @@
 import { useState, useEffect, useRef } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+const SUPABASE_URL = "https://rxsqakxamxzhnnoyfdol.supabase.co";
+const SUPABASE_KEY = "sb_publishable_PaP3V8GF77rHXGDfSAALBA_DUOLUg0T";
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ─── DATA ─────────────────────────────────────────────────────────────────────
 
@@ -128,11 +133,22 @@ const PROCESSES = [
     ],
     completion: "The grid is activated. A belief shifts when evidence outweighs doubt — and you just built that evidence." },
 
-  { id: "gratitude",  name: "Gratitude List",           emoji: "🙏", color: "#F5C842", tagline: "The fastest frequency shift",           tiers: ["high","mid","low"], type: "list",
-    description: "List what you're grateful for. Specificity creates more momentum than generality.",
-    prompt: "List everything you're grateful for today. Be specific. Let it surprise you.",
-    placeholder: "I'm grateful for…", minItems: 5,
-    completion: "Gratitude is the great equalizer. Your frequency just rose." },
+  { id: "celebrate",  name: "Celebrate Your Wins",       emoji: "🏆", color: "#FFB347", tagline: "Savor what's already working",         tiers: ["high","mid","low"], type: "freeflow",
+    description: "Celebration is one of the most powerful vibrational practices available to us. When you deliberately acknowledge what went right — no matter how small — you train your mind to find more of it. This is appreciation anchored in real evidence from your actual life.",
+    steps: [
+      { prompt: "What is one thing that went right today? It doesn't have to be big. Small counts — maybe more than big.", placeholder: "Something that went right today was…" },
+      { prompt: "What did you handle well today? Where did you show up for yourself, even imperfectly?", placeholder: "I handled it well when I…" },
+      { prompt: "What moment today are you most proud of — even quietly, even privately?", placeholder: "I'm proud that today I…" },
+      { prompt: "What evidence did you see today — however small — that things are working out for you?", placeholder: "Evidence that things are working out: today I noticed…" },
+      { prompt: "Close with a statement of appreciation for yourself. You showed up today. That matters.", placeholder: "I appreciate myself today for…" },
+    ],
+    completion: "You just trained your mind to find more of what's right. What you celebrate, you call in more of. Well done — in every sense of the word." },
+
+  { id: "gratitude",  name: "Thanksgiving & Appreciation", emoji: "🙏", color: "#F5C842", tagline: "Flow from fullness, not lack",           tiers: ["high","mid","low"], type: "list",
+    description: "Thanksgiving and Appreciation flow freely — without the subtle resistance that can sometimes accompany gratitude. When you give thanks from a place of fullness, you're not acknowledging what you lacked before. You're simply savoring what is.",
+    prompt: "List everything you're thankful for right now. Be specific. Let it surprise you. Begin each one with 'I'm so thankful for…'",
+    placeholder: "I'm so thankful for…", minItems: 5,
+    completion: "Thanksgiving from fullness is one of the purest frequencies available to you. Your vibration just rose." },
 ];
 
 const VISION_CATEGORIES = [
@@ -145,8 +161,19 @@ const VISION_CATEGORIES = [
 
 // ─── STORAGE ──────────────────────────────────────────────────────────────────
 
-function ls(key, fallback) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; } }
-function lsSet(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); return true; } catch { return false; } }
+// Supabase async helpers
+async function dbGet(table, userId, extra = {}) {
+  let q = supabase.from(table).select("*").eq("user_id", userId);
+  Object.entries(extra).forEach(([k, v]) => { q = q.eq(k, v); });
+  const { data } = await q;
+  return data || [];
+}
+async function dbUpsert(table, data) {
+  return supabase.from(table).upsert(data);
+}
+async function dbInsert(table, data) {
+  return supabase.from(table).insert(data);
+}
 function todayKey() { return new Date().toISOString().split("T")[0]; }
 function weekDates() {
   const today = new Date(); const day = today.getDay();
@@ -215,20 +242,92 @@ function BackBtn({ onClick, label = "← Back", color = "#555570" }) {
   return <button onClick={onClick} style={{ ...C.ghost(color), width: "auto", display: "inline-block", marginBottom: "20px" }}>{label}</button>;
 }
 
+// ─── AUTH SCREEN ──────────────────────────────────────────────────────────────
+
+function AuthScreen({ onAuth }) {
+  const [mode, setMode] = useState("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [v, setV] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setV(true), 40); return () => clearTimeout(t); }, []);
+
+  async function handleSubmit() {
+    setError(""); setMessage(""); setLoading(true);
+    if (mode === "signup") {
+      const { error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } });
+      if (error) setError(error.message);
+      else setMessage("Check your email to confirm your account, then sign in.");
+    } else if (mode === "login") {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) setError(error.message);
+      else onAuth(data.user);
+    } else {
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      if (error) setError(error.message);
+      else setMessage("Password reset email sent! Check your inbox.");
+    }
+    setLoading(false);
+  }
+
+  return (
+    <div style={{ ...C.wrap(v), paddingTop: "40px" }}>
+      <div style={C.hdr}>
+        <span style={C.ey()}>The Sweet Spot Practice</span>
+        <h1 style={C.h1}>{mode === "signup" ? "Create Your Account" : mode === "forgot" ? "Reset Password" : "Welcome Back"}</h1>
+        <p style={C.sub}>{mode === "signup" ? "Begin your daily alignment practice." : mode === "forgot" ? "We'll send you a reset link." : "Your practice is waiting for you."}</p>
+      </div>
+      <div style={C.card()}>
+        {mode === "signup" && (
+          <div style={{ marginBottom: "12px" }}>
+            <span style={C.lbl()}>Your Name</span>
+            <input style={C.inp} type="text" placeholder="First name" value={name} onChange={e => setName(e.target.value)} />
+          </div>
+        )}
+        <div style={{ marginBottom: "12px" }}>
+          <span style={C.lbl()}>Email</span>
+          <input style={C.inp} type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} />
+        </div>
+        {mode !== "forgot" && (
+          <div>
+            <span style={C.lbl()}>Password</span>
+            <input style={C.inp} type="password" placeholder={mode === "signup" ? "Min 6 characters" : "Your password"} value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSubmit()} />
+          </div>
+        )}
+        {error && <p style={{ color: "#D45A4A", fontFamily: "'DM Sans', sans-serif", fontSize: "13px", marginTop: "10px" }}>{error}</p>}
+        {message && <p style={{ color: "#79C99E", fontFamily: "'DM Sans', sans-serif", fontSize: "13px", marginTop: "10px" }}>{message}</p>}
+        <button style={C.btn()} onClick={handleSubmit} disabled={loading}>
+          {loading ? "Please wait…" : mode === "signup" ? "Create Account ✨" : mode === "forgot" ? "Send Reset Email" : "Sign In →"}
+        </button>
+      </div>
+      {mode === "login" && <button style={C.ghost()} onClick={() => { setMode("signup"); setError(""); setMessage(""); }}>Don't have an account? Sign up</button>}
+      {mode === "signup" && <button style={C.ghost()} onClick={() => { setMode("login"); setError(""); setMessage(""); }}>Already have an account? Sign in</button>}
+      {mode === "login" && <button style={{ ...C.ghost("#444466"), marginTop: "6px" }} onClick={() => { setMode("forgot"); setError(""); setMessage(""); }}>Forgot password?</button>}
+      {mode === "forgot" && <button style={C.ghost()} onClick={() => { setMode("login"); setError(""); setMessage(""); }}>← Back to sign in</button>}
+      <p style={{ fontSize: "11px", color: "#333355", fontFamily: "'DM Sans', sans-serif", textAlign: "center", marginTop: "20px", lineHeight: 1.6 }}>
+        Your data is stored securely and never shared.
+      </p>
+    </div>
+  );
+}
+
 // ─── EGS CHECK-IN ─────────────────────────────────────────────────────────────
 
-function EGSCheckin({ egsHistory, onSave, onClose }) {
+function EGSCheckin({ userId, onSave, onClose }) {
   const [step, setStep] = useState("pick"); // pick | reflect | action | done
   const [selected, setSelected] = useState(null);
   const [journal, setJournal] = useState("");
   const [v, setV] = useState(true);
   const today = new Date();
-  const existing = egsHistory[todayKey()];
 
   function go(s) { setV(false); setTimeout(() => { setStep(s); setV(true); }, 220); }
 
-  function finish() {
-    const entry = { level: selected, journal, ts: Date.now() };
+  async function finish() {
+    const entry = { user_id: userId, level_id: selected.id, level_name: selected.name, level_emoji: selected.emoji, level_color: selected.color, level_tier: selected.tier, journal, date_key: todayKey(), created_at: new Date().toISOString() };
+    await supabase.from("egs_checkins").upsert(entry, { onConflict: "user_id,date_key" });
     onSave(entry);
     go("done");
   }
@@ -322,7 +421,7 @@ function EGSCheckin({ egsHistory, onSave, onClose }) {
 
 // ─── PROCESS RUNNER ───────────────────────────────────────────────────────────
 
-function ProcessRunner({ process, onComplete, onBack }) {
+function ProcessRunner({ process, userId, onComplete, onBack }) {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState({});
   const [twoCol, setTwoCol] = useState({ left: "", right: "" });
@@ -333,11 +432,10 @@ function ProcessRunner({ process, onComplete, onBack }) {
 
   function go(fn) { setV(false); setTimeout(() => { fn(); setV(true); }, 220); }
 
-  function save() {
-    const entry = { processId: process.id, processName: process.name, ts: Date.now(), answers, twoCol, listItems };
-    const hist = ls("process_history", []);
-    lsSet("process_history", [entry, ...hist].slice(0, 100));
-    onComplete && onComplete(entry);
+  async function save() {
+    const entry = { user_id: userId, process_id: process.id, process_name: process.name, answers: JSON.stringify(answers), two_col: JSON.stringify(twoCol), list_items: JSON.stringify(listItems), created_at: new Date().toISOString() };
+    await supabase.from("process_history").insert(entry);
+    onComplete && onComplete();
     go(() => setDone(true));
   }
 
@@ -538,12 +636,12 @@ function VisionCategory({ cat, data, onSave, onBack }) {
   );
 }
 
-function VisionBoard({ board, onSave }) {
+function VisionBoard({ userId, visionBoard: board, onSave }) {
   const [active, setActive] = useState(null);
   const [v, setV] = useState(false);
   useEffect(() => { const t = setTimeout(() => setV(true), 40); return () => clearTimeout(t); }, []);
 
-  if (active) return <VisionCategory cat={active} data={board[active.id] || {}} onSave={d => onSave(active.id, d)} onBack={() => setActive(null)} />;
+  if (active) return <VisionCategory cat={active} data={board[active.id] || {}} userId={userId} onSave={async (catId, d) => { onSave(catId, d); await supabase.from('vision_board').upsert({ user_id: userId, category_id: catId, images: JSON.stringify(d.images || []), text: d.text || '', updated_at: new Date().toISOString() }, { onConflict: 'user_id,category_id' }); }} onBack={() => setActive(null)} />;
 
   const totalImgs = VISION_CATEGORIES.reduce((a, c) => a + (board[c.id]?.images?.length || 0), 0);
   const totalText = VISION_CATEGORIES.filter(c => board[c.id]?.text?.trim()).length;
@@ -602,13 +700,13 @@ function VisionBoard({ board, onSave }) {
 
 // ─── HOME ─────────────────────────────────────────────────────────────────────
 
-function Home({ egsHistory, processHistory, visionBoard, onStartCheckin, onOpenProcess, onOpenVision }) {
+function Home({ user, egsToday, processHistory, visionBoard, onStartCheckin, onOpenProcess, onGoVision, onSignOut }) {
   const [v, setV] = useState(false);
   useEffect(() => { const t = setTimeout(() => setV(true), 40); return () => clearTimeout(t); }, []);
 
-  const todayEntry = egsHistory[todayKey()];
-  const egsLevel = todayEntry?.level;
+  const egsLevel = egsToday ? EGS_LEVELS.find(l => l.id === egsToday.level_id) : null;
   const week = weekDates();
+  const firstName = user?.user_metadata?.full_name?.split(' ')[0] || '';
 
   function getFeatured(level) {
     if (!level) return PROCESSES[0];
@@ -629,7 +727,7 @@ function Home({ egsHistory, processHistory, visionBoard, onStartCheckin, onOpenP
       {/* EGS Today */}
       <div style={C.card(egsLevel?.color)}>
         <span style={C.lbl(egsLevel?.color || "#F5C842")}>Today's Vibration</span>
-        {todayEntry ? (
+        {egsToday ? (
           <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
             <span style={{ fontSize: "28px" }}>{egsLevel.emoji}</span>
             <div style={{ flex: 1 }}>
@@ -652,13 +750,13 @@ function Home({ egsHistory, processHistory, visionBoard, onStartCheckin, onOpenP
         <div style={{ display: "flex", gap: "6px", justifyContent: "space-between" }}>
           {week.map((date, i) => {
             const k = dKey(date); const isToday = k === todayKey();
-            const egsEntry = egsHistory[k];
+            const isCheckedIn = egsToday && k === todayKey();
             const didProcess = processHistory.some(h => new Date(h.ts).toISOString().split("T")[0] === k);
             return (
               <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "5px" }}>
                 <div style={{ fontSize: "10px", color: isToday ? "#F5C842" : "#333355", fontFamily: "'DM Sans', sans-serif" }}>{"SMTWTFS"[date.getDay()]}</div>
-                <div style={{ width: "30px", height: "30px", borderRadius: "50%", background: egsEntry ? egsEntry.level.color + "CC" : (isToday ? "rgba(245,200,66,0.12)" : "rgba(255,255,255,0.04)"), border: isToday ? "2px solid #F5C842" : "2px solid transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px" }}>
-                  {egsEntry ? egsEntry.level.emoji : ""}
+                <div style={{ width: "30px", height: "30px", borderRadius: "50%", background: isCheckedIn ? (egsLevel?.color || "#F5C842") + "CC" : (isToday ? "rgba(245,200,66,0.12)" : "rgba(255,255,255,0.04)"), border: isToday ? "2px solid #F5C842" : "2px solid transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px" }}>
+                  {isCheckedIn ? egsLevel?.emoji : ""}
                 </div>
                 {didProcess && <div style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#F5C842" }} />}
               </div>
@@ -686,7 +784,7 @@ function Home({ egsHistory, processHistory, visionBoard, onStartCheckin, onOpenP
       )}
 
       {/* Vision board teaser */}
-      <div style={{ ...C.card(), cursor: "pointer", background: "rgba(249,160,63,0.06)", borderColor: "rgba(249,160,63,0.2)" }} onClick={onOpenVision}>
+      <div style={{ ...C.card(), cursor: "pointer", background: "rgba(249,160,63,0.06)", borderColor: "rgba(249,160,63,0.2)" }} onClick={onGoVision}>
         <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
           <span style={{ fontSize: "28px" }}>🖼</span>
           <div style={{ flex: 1 }}>
@@ -704,13 +802,13 @@ function Home({ egsHistory, processHistory, visionBoard, onStartCheckin, onOpenP
         <>
           <span style={{ ...C.lbl(), marginTop: "4px" }}>Recent Practices</span>
           {processHistory.slice(0, 3).map((h, i) => {
-            const p = PROCESSES.find(p => p.id === h.processId); if (!p) return null;
+            const p = PROCESSES.find(pr => pr.id === h.process_id); if (!p) return null;
             return (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: "14px", padding: "16px 18px", borderRadius: "16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", marginBottom: "9px", cursor: "pointer" }} onClick={() => onOpenProcess(p)}>
                 <span style={{ fontSize: "20px" }}>{p.emoji}</span>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: "14px", color: "#EAE8FF", fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>{p.name}</div>
-                  <div style={{ fontSize: "11px", color: "#444466", fontFamily: "'DM Sans', sans-serif", marginTop: "2px" }}>{new Date(h.ts).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
+                  <div style={{ fontSize: "11px", color: "#444466", fontFamily: "'DM Sans', sans-serif", marginTop: "2px" }}>{new Date(h.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
                 </div>
                 <span style={{ color: "#444466" }}>→</span>
               </div>
@@ -718,6 +816,16 @@ function Home({ egsHistory, processHistory, visionBoard, onStartCheckin, onOpenP
           })}
         </>
       )}
+
+      <div style={{ ...C.card(), marginTop: "8px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontSize: "13px", color: "#EAE8FF", fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>{user?.email}</div>
+            <div style={{ fontSize: "11px", color: "#444466", fontFamily: "'DM Sans', sans-serif", marginTop: "2px" }}>Your account</div>
+          </div>
+          <button onClick={onSignOut} style={{ background: "none", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", color: "#555570", cursor: "pointer", fontSize: "12px", fontFamily: "'DM Sans', sans-serif", padding: "8px 14px" }}>Sign out</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -737,7 +845,7 @@ function Library({ egsLevel, onOpenProcess }) {
       <div style={C.hdr}>
         <span style={C.ey()}>The Sweet Spot Practice · Library</span>
         <h1 style={{ ...C.h1, fontSize: "26px" }}>All Practices</h1>
-        <p style={C.sub}>12 processes for every emotional state</p>
+        <p style={C.sub}>13 processes for every emotional state</p>
       </div>
       <div style={{ display: "flex", gap: "7px", marginBottom: "20px", flexWrap: "wrap" }}>
         {chips.map(([val, label, col]) => (
@@ -763,13 +871,30 @@ function Library({ egsLevel, onOpenProcess }) {
 
 // ─── JOURNAL ──────────────────────────────────────────────────────────────────
 
-function Journal({ processHistory, egsHistory }) {
+function Journal({ userId }) {
   const [v, setV] = useState(false);
   useEffect(() => { const t = setTimeout(() => setV(true), 40); return () => clearTimeout(t); }, []);
+  const [entries, setEntries] = useState([]);
+  const [egsEntries, setEgsEntries] = useState([]);
+  const [jLoading, setJLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      const [{ data: ph }, { data: eg }] = await Promise.all([
+        supabase.from("process_history").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(50),
+        supabase.from("egs_checkins").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(30),
+      ]);
+      setEntries(ph || []);
+      setEgsEntries(eg || []);
+      setJLoading(false);
+    }
+    load();
+  }, []);
+
   const allEntries = [
-    ...processHistory.map(h => ({ ...h, _type: "process" })),
-    ...Object.entries(egsHistory).map(([k, e]) => ({ ...e, _type: "egs", dateKey: k })),
-  ].sort((a, b) => (b.ts || 0) - (a.ts || 0));
+    ...(entries.map(h => ({ ...h, _type: "process" }))),
+    ...(egsEntries.map(h => ({ ...h, _type: "egs" }))),
+  ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   return (
     <div style={C.wrap(v)}>
@@ -800,7 +925,8 @@ function Journal({ processHistory, egsHistory }) {
           );
         }
         const p = PROCESSES.find(pr => pr.id === entry.processId); if (!p) return null;
-        const firstAnswer = Object.values(entry.answers || {})[0] || entry.twoCol?.left || (entry.listItems || []).find(Boolean) || "";
+        const answers = (() => { try { return JSON.parse(entry.answers || "{}"); } catch { return {}; } })();
+        const firstAnswer = Object.values(answers)[0] || "";
         return (
           <div key={`proc-${i}`} style={{ ...C.card(p.color), marginBottom: "12px" }}>
             <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: firstAnswer ? "10px" : "0" }}>
@@ -821,84 +947,88 @@ function Journal({ processHistory, egsHistory }) {
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
 
 export default function App() {
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [tab, setTab] = useState("home");
-  const [subView, setSubView] = useState(null); // "checkin" | "process" | "vision"
+  const [subView, setSubView] = useState(null);
   const [activeProcess, setActiveProcess] = useState(null);
-  const [egsHistory, setEgsHistory] = useState({});
+  const [egsToday, setEgsToday] = useState(null);
   const [processHistory, setProcessHistory] = useState([]);
   const [visionBoard, setVisionBoard] = useState({});
   const [glowColor, setGlowColor] = useState("#F5C842");
 
   useEffect(() => {
-    setEgsHistory(ls("egs_history", {}));
-    setProcessHistory(ls("process_history", []));
-    setVisionBoard(ls("visionboard_v3", {}));
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+      if (session?.user) loadUserData(session.user.id);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if (session?.user) loadUserData(session.user.id);
+      else setAuthLoading(false);
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
-  const todayEGS = egsHistory[todayKey()];
-
-  function saveEGS(entry) {
-    const next = { ...egsHistory, [todayKey()]: entry };
-    setEgsHistory(next); lsSet("egs_history", next);
+  async function loadUserData(uid) {
+    const [{ data: egs }, { data: ph }, { data: vb }] = await Promise.all([
+      supabase.from("egs_checkins").select("*").eq("user_id", uid).eq("date_key", todayKey()).maybeSingle(),
+      supabase.from("process_history").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(10),
+      supabase.from("vision_board").select("*").eq("user_id", uid),
+    ]);
+    if (egs) setEgsToday(egs);
+    if (ph) setProcessHistory(ph);
+    if (vb) { const b = {}; vb.forEach(row => { b[row.category_id] = { images: JSON.parse(row.images || "[]"), text: row.text || "" }; }); setVisionBoard(b); }
   }
 
-  function saveVision(catId, data) {
-    const next = { ...visionBoard, [catId]: data };
-    setVisionBoard(next); lsSet("visionboard_v3", next);
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    setUser(null); setEgsToday(null); setProcessHistory([]); setVisionBoard({});
   }
 
   function openProcess(p) { setActiveProcess(p); setSubView("process"); setGlowColor(p.color); }
-  function closeProcess() { setSubView(null); setActiveProcess(null); setProcessHistory(ls("process_history", [])); setGlowColor("#F5C842"); }
+  function closeProcess() { setSubView(null); setActiveProcess(null); if (user) loadUserData(user.id); setGlowColor("#F5C842"); }
+  function switchTab(t) { setSubView(null); setActiveProcess(null); setTab(t); setGlowColor(t === "vision" ? "#F9A03F" : "#F5C842"); }
 
-  const TABS = [
-    { id: "home",    icon: "🏠", label: "Home" },
-    { id: "library", icon: "📚", label: "Library" },
-    { id: "vision",  icon: "🖼",  label: "Vision" },
-    { id: "journal", icon: "📓", label: "Journal" },
-  ];
+  const TABS = [["home", "🏠", "Home"], ["library", "📚", "Library"], ["vision", "🖼", "Vision"], ["journal", "📓", "Journal"]];
 
-  function handleTabChange(t) {
-    setSubView(null); setActiveProcess(null);
-    setTab(t);
-    setGlowColor(t === "vision" ? "#F9A03F" : "#F5C842");
-  }
+  if (authLoading) return (
+    <div style={{ ...C.app, justifyContent: "center", alignItems: "center" }}>
+      <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+      <div style={C.grain} />
+      <div style={{ textAlign: "center", color: "#F5C842", fontFamily: "'DM Sans', sans-serif", fontSize: "13px", letterSpacing: "2px" }}>✨ Loading…</div>
+    </div>
+  );
+
+  if (!user) return (
+    <div style={C.app}>
+      <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+      <div style={C.grain} />
+      <div style={C.glow("#F5C842")} />
+      <AuthScreen onAuth={u => { setUser(u); loadUserData(u.id); }} />
+    </div>
+  );
+
+  const egsLevel = egsToday ? EGS_LEVELS.find(l => l.id === egsToday.level_id) : null;
 
   return (
     <div style={C.app}>
       <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
       <div style={C.grain} />
       <div style={C.glow(glowColor)} />
-
-      {/* Content */}
       <div style={{ width: "100%", display: "flex", justifyContent: "center" }}>
-        {subView === "checkin" && (
-          <EGSCheckin egsHistory={egsHistory} onSave={saveEGS} onClose={() => { setSubView(null); setGlowColor("#F5C842"); }} />
-        )}
-        {subView === "process" && activeProcess && (
-          <ProcessRunner process={activeProcess} onComplete={() => setProcessHistory(ls("process_history", []))} onBack={closeProcess} />
-        )}
-        {!subView && tab === "home" && (
-          <Home egsHistory={egsHistory} processHistory={processHistory} visionBoard={visionBoard}
-            onStartCheckin={() => { setSubView("checkin"); setGlowColor(todayEGS?.level?.color || "#F5C842"); }}
-            onOpenProcess={openProcess}
-            onOpenVision={() => handleTabChange("vision")} />
-        )}
-        {!subView && tab === "library" && (
-          <Library egsLevel={todayEGS?.level} onOpenProcess={openProcess} />
-        )}
-        {!subView && tab === "vision" && (
-          <VisionBoard board={visionBoard} onSave={saveVision} />
-        )}
-        {!subView && tab === "journal" && (
-          <Journal processHistory={processHistory} egsHistory={egsHistory} />
-        )}
+        {subView === "checkin" && <EGSCheckin userId={user.id} onSave={entry => { setEgsToday(entry); setSubView(null); setGlowColor("#F5C842"); }} onClose={() => { setSubView(null); setGlowColor("#F5C842"); }} />}
+        {subView === "process" && activeProcess && <ProcessRunner process={activeProcess} userId={user.id} onComplete={() => loadUserData(user.id)} onBack={closeProcess} />}
+        {!subView && tab === "home" && <Home user={user} egsToday={egsToday} processHistory={processHistory} visionBoard={visionBoard} onStartCheckin={() => { setSubView("checkin"); setGlowColor(egsLevel?.color || "#F5C842"); }} onOpenProcess={openProcess} onGoVision={() => switchTab("vision")} onSignOut={handleSignOut} />}
+        {!subView && tab === "library" && <Library egsLevel={egsLevel} onOpenProcess={openProcess} />}
+        {!subView && tab === "vision" && <VisionBoard userId={user.id} visionBoard={visionBoard} onSave={(catId, data) => { const next = { ...visionBoard, [catId]: data }; setVisionBoard(next); }} />}
+        {!subView && tab === "journal" && <Journal userId={user.id} />}
       </div>
-
-      {/* Bottom Nav */}
       {!subView && (
         <nav style={C.nav}>
-          {TABS.map(({ id, icon, label }) => (
-            <button key={id} style={C.navBtn(tab === id)} onClick={() => handleTabChange(id)}>
+          {TABS.map(([t, icon, label]) => (
+            <button key={t} style={C.navBtn(tab === t)} onClick={() => switchTab(t)}>
               <span style={{ fontSize: "19px" }}>{icon}</span>
               {label}
             </button>
