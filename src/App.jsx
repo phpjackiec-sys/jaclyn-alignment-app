@@ -858,7 +858,7 @@ function Home({ user, egsToday, processHistory, visionBoard, onStartCheckin, onO
           {week.map((date, i) => {
             const k = dKey(date); const isToday = k === todayKey();
             const isCheckedIn = egsToday && k === todayKey();
-            const didProcess = processHistory.some(h => new Date(h.ts).toISOString().split("T")[0] === k);
+            const didProcess = processHistory.some(h => h.created_at && new Date(h.created_at).toISOString().split("T")[0] === k);
             return (
               <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "5px" }}>
                 <div style={{ fontSize: "10px", color: isToday ? "#F5C842" : "#333355", fontFamily: "'DM Sans', sans-serif" }}>{"SMTWTFS"[date.getDay()]}</div>
@@ -915,7 +915,7 @@ function Home({ user, egsToday, processHistory, visionBoard, onStartCheckin, onO
                 <span style={{ fontSize: "20px" }}>{p.emoji}</span>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: "14px", color: "#EAE8FF", fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>{p.name}</div>
-                  <div style={{ fontSize: "11px", color: "#444466", fontFamily: "'DM Sans', sans-serif", marginTop: "2px" }}>{new Date(h.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
+                  <div style={{ fontSize: "11px", color: "#444466", fontFamily: "'DM Sans', sans-serif", marginTop: "2px" }}>{(h.created_at ? new Date(h.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "")}</div>
                 </div>
                 <span style={{ color: "#444466" }}>→</span>
               </div>
@@ -1024,7 +1024,7 @@ function Journal({ userId }) {
                 <span style={{ fontSize: "22px" }}>{l?.emoji}</span>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: "13px", color: l?.color, fontFamily: "'DM Sans', sans-serif", fontWeight: 700 }}>EGS Check-in · {l?.name}</div>
-                  <div style={{ fontSize: "11px", color: "#444466", fontFamily: "'DM Sans', sans-serif", marginTop: "2px" }}>{new Date(entry.created_at).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} · Level {l?.id}</div>
+                  <div style={{ fontSize: "11px", color: "#444466", fontFamily: "'DM Sans', sans-serif", marginTop: "2px" }}>{(entry.created_at ? (entry.created_at ? new Date(entry.created_at).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : "") : "")} · Level {l?.id}</div>
                 </div>
               </div>
               {entry.journal && <p style={{ fontSize: "13px", color: "#888899", fontFamily: "'DM Sans', sans-serif", fontStyle: "italic", lineHeight: 1.65, margin: "10px 0 0" }}>"{entry.journal.length > 120 ? entry.journal.slice(0, 120) + "…" : entry.journal}"</p>}
@@ -1040,7 +1040,7 @@ function Journal({ userId }) {
               <span style={{ fontSize: "22px" }}>{p.emoji}</span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: "13px", color: p.color, fontFamily: "'DM Sans', sans-serif", fontWeight: 700 }}>{p.name}</div>
-                <div style={{ fontSize: "11px", color: "#444466", fontFamily: "'DM Sans', sans-serif", marginTop: "2px" }}>{new Date(entry.created_at).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</div>
+                <div style={{ fontSize: "11px", color: "#444466", fontFamily: "'DM Sans', sans-serif", marginTop: "2px" }}>{(entry.created_at ? new Date(entry.created_at).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : "")}</div>
               </div>
             </div>
             {firstAnswer && <p style={{ fontSize: "13px", color: "#888899", fontFamily: "'DM Sans', sans-serif", fontStyle: "italic", lineHeight: 1.65, margin: 0 }}>"{firstAnswer.length > 130 ? firstAnswer.slice(0, 130) + "…" : firstAnswer}"</p>}
