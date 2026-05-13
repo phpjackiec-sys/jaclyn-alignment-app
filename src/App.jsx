@@ -245,7 +245,7 @@ function BackBtn({ onClick, label = "← Back", color = "#555570" }) {
 // ─── AUTH SCREEN ──────────────────────────────────────────────────────────────
 
 function AuthScreen({ onAuth }) {
-  const [mode, setMode] = useState("login");
+  const [mode, setMode] = useState("login"); // login | invite | forgot
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -253,60 +253,104 @@ function AuthScreen({ onAuth }) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [v, setV] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setV(true), 40); return () => clearTimeout(t); }, []);
+  const [inviteToken, setInviteToken] = useState(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setV(true), 40);
+    // Check for Supabase invite/magic link token in URL hash
+    const hash = window.location.hash;
+    if (hash && hash.includes("access_token")) {
+      const params = new URLSearchParams(hash.replace("#", "?"));
+      const token = params.get("access_token");
+      const type = params.get("type");
+      if (token && (type === "invite" || type === "recovery" || type === "magiclink")) {
+        setInviteToken(token);
+        setMode("invite");
+        // Clear the hash from URL
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+    }
+    return () => clearTimeout(t);
+  }, []);
 
   async function handleSubmit() {
     setError(""); setMessage(""); setLoading(true);
-    if (mode === "signup") {
-      const { error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } });
+    if (mode === "invite") {
+      // User arrived via invite link — set their password to complete signup
+      const { data, error } = await supabase.auth.updateUser({ password, data: { full_name: name } });
       if (error) setError(error.message);
-      else setMessage("Check your email to confirm your account, then sign in.");
+      else if (data.user) onAuth(data.user);
     } else if (mode === "login") {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) setError(error.message);
       else onAuth(data.user);
     } else {
-      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin,
+      });
       if (error) setError(error.message);
       else setMessage("Password reset email sent! Check your inbox.");
     }
     setLoading(false);
   }
 
+  const STAN_STORE_URL = "https://stan.store/JaclynCruz";
+
   return (
     <div style={{ ...C.wrap(v), paddingTop: "40px" }}>
       <div style={C.hdr}>
         <span style={C.ey()}>The Sweet Spot Practice</span>
-        <h1 style={C.h1}>{mode === "signup" ? "Create Your Account" : mode === "forgot" ? "Reset Password" : "Welcome Back"}</h1>
-        <p style={C.sub}>{mode === "signup" ? "Begin your daily alignment practice." : mode === "forgot" ? "We'll send you a reset link." : "Your practice is waiting for you."}</p>
+        <h1 style={C.h1}>
+          {mode === "invite" ? "Complete Your Account" : mode === "forgot" ? "Reset Password" : "Welcome Back"}
+        </h1>
+        <p style={C.sub}>
+          {mode === "invite" ? "You're almost in. Choose a password to complete your account setup." :
+           mode === "forgot" ? "We'll send you a reset link." :
+           "Your practice is waiting for you."}
+        </p>
       </div>
+
       <div style={C.card()}>
-        {mode === "signup" && (
+        {mode === "invite" && (
           <div style={{ marginBottom: "12px" }}>
             <span style={C.lbl()}>Your Name</span>
             <input style={C.inp} type="text" placeholder="First name" value={name} onChange={e => setName(e.target.value)} />
           </div>
         )}
-        <div style={{ marginBottom: "12px" }}>
-          <span style={C.lbl()}>Email</span>
-          <input style={C.inp} type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} />
-        </div>
+        {mode !== "invite" && (
+          <div style={{ marginBottom: "12px" }}>
+            <span style={C.lbl()}>Email</span>
+            <input style={C.inp} type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} />
+          </div>
+        )}
         {mode !== "forgot" && (
           <div>
-            <span style={C.lbl()}>Password</span>
-            <input style={C.inp} type="password" placeholder={mode === "signup" ? "Min 6 characters" : "Your password"} value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSubmit()} />
+            <span style={C.lbl()}>{mode === "invite" ? "Create a Password" : "Password"}</span>
+            <input style={C.inp} type="password" placeholder={mode === "invite" ? "Min 6 characters" : "Your password"} value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSubmit()} />
           </div>
         )}
         {error && <p style={{ color: "#D45A4A", fontFamily: "'DM Sans', sans-serif", fontSize: "13px", marginTop: "10px" }}>{error}</p>}
         {message && <p style={{ color: "#79C99E", fontFamily: "'DM Sans', sans-serif", fontSize: "13px", marginTop: "10px" }}>{message}</p>}
         <button style={C.btn()} onClick={handleSubmit} disabled={loading}>
-          {loading ? "Please wait…" : mode === "signup" ? "Create Account ✨" : mode === "forgot" ? "Send Reset Email" : "Sign In →"}
+          {loading ? "Please wait…" :
+           mode === "invite" ? "Enter The Sweet Spot Practice ✨" :
+           mode === "forgot" ? "Send Reset Email" : "Sign In →"}
         </button>
       </div>
-      {mode === "login" && <button style={C.ghost()} onClick={() => { setMode("signup"); setError(""); setMessage(""); }}>Don't have an account? Sign up</button>}
-      {mode === "signup" && <button style={C.ghost()} onClick={() => { setMode("login"); setError(""); setMessage(""); }}>Already have an account? Sign in</button>}
-      {mode === "login" && <button style={{ ...C.ghost("#444466"), marginTop: "6px" }} onClick={() => { setMode("forgot"); setError(""); setMessage(""); }}>Forgot password?</button>}
-      {mode === "forgot" && <button style={C.ghost()} onClick={() => { setMode("login"); setError(""); setMessage(""); }}>← Back to sign in</button>}
+
+      {mode === "login" && (
+        <>
+          <button style={C.ghost("#F5C842")} onClick={() => window.open(STAN_STORE_URL, "_blank")}>
+            ✨ Get access — purchase here
+          </button>
+          <button style={{ ...C.ghost("#444466"), marginTop: "6px" }} onClick={() => { setMode("forgot"); setError(""); setMessage(""); }}>
+            Forgot password?
+          </button>
+        </>
+      )}
+      {mode === "forgot" && (
+        <button style={C.ghost()} onClick={() => { setMode("login"); setError(""); setMessage(""); }}>← Back to sign in</button>
+      )}
       <p style={{ fontSize: "11px", color: "#333355", fontFamily: "'DM Sans', sans-serif", textAlign: "center", marginTop: "20px", lineHeight: 1.6 }}>
         Your data is stored securely and never shared.
       </p>
@@ -421,6 +465,48 @@ function EGSCheckin({ userId, onSave, onClose }) {
 
 // ─── PROCESS RUNNER ───────────────────────────────────────────────────────────
 
+function Confetti() {
+  const [particles, setParticles] = useState([]);
+  useEffect(() => {
+    const colors = ["#F5C842","#FFB347","#F9A03F","#79C99E","#6DC8E0","#C4A8D4","#F7D76B","#EAE8FF"];
+    const shapes = ["●","★","✦","▲","♦","●","✦","★"];
+    const items = Array.from({ length: 60 }, (_, i) => ({
+      id: i,
+      x: Math.random() * 100,
+      delay: Math.random() * 0.8,
+      duration: 1.8 + Math.random() * 1.2,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      shape: shapes[Math.floor(Math.random() * shapes.length)],
+      size: 10 + Math.floor(Math.random() * 14),
+      rotation: Math.random() * 720 - 360,
+      drift: (Math.random() - 0.5) * 120,
+    }));
+    setParticles(items);
+    const t = setTimeout(() => setParticles([]), 3500);
+    return () => clearTimeout(t);
+  }, []);
+  if (!particles.length) return null;
+  return (
+    <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 999, overflow: "hidden" }}>
+      <style>{`
+        @keyframes confettiFall {
+          0%   { transform: translateY(-20px) translateX(0) rotate(0deg); opacity: 1; }
+          80%  { opacity: 1; }
+          100% { transform: translateY(105vh) translateX(var(--drift)) rotate(var(--rot)); opacity: 0; }
+        }
+      `}</style>
+      {particles.map(p => (
+        <div key={p.id} style={{
+          position: "absolute", top: 0, left: `${p.x}%`,
+          color: p.color, fontSize: `${p.size}px`,
+          animation: `confettiFall ${p.duration}s ${p.delay}s ease-in forwards`,
+          "--drift": `${p.drift}px`, "--rot": `${p.rotation}deg`,
+        }}>{p.shape}</div>
+      ))}
+    </div>
+  );
+}
+
 function ProcessRunner({ process, userId, onComplete, onBack }) {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState({});
@@ -428,6 +514,7 @@ function ProcessRunner({ process, userId, onComplete, onBack }) {
   const [listItems, setListItems] = useState([""]);
   const [visionAnswers, setVisionAnswers] = useState({});
   const [done, setDone] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
   const [v, setV] = useState(true);
 
   function go(fn) { setV(false); setTimeout(() => { fn(); setV(true); }, 220); }
@@ -436,15 +523,35 @@ function ProcessRunner({ process, userId, onComplete, onBack }) {
     const entry = { user_id: userId, process_id: process.id, process_name: process.name, answers: JSON.stringify(answers), two_col: JSON.stringify(twoCol), list_items: JSON.stringify(listItems), created_at: new Date().toISOString() };
     await supabase.from("process_history").insert(entry);
     onComplete && onComplete();
+    if (process.id === "celebrate") setShowConfetti(true);
     go(() => setDone(true));
   }
 
   if (done) return (
     <div style={C.wrap(v)}>
+      {showConfetti && <Confetti />}
       <div style={{ background: `${process.color}12`, border: `1px solid ${process.color}44`, borderRadius: "18px", padding: "32px 24px", marginBottom: "14px", textAlign: "center" }}>
-        <div style={{ fontSize: "44px", marginBottom: "12px" }}>{process.emoji}</div>
-        <div style={{ fontSize: "20px", color: process.color, fontFamily: "'DM Sans', sans-serif", fontWeight: 700, marginBottom: "12px" }}>Process Complete</div>
+        <div style={{ fontSize: process.id === "celebrate" ? "56px" : "44px", marginBottom: "12px", animation: process.id === "celebrate" ? "none" : "none" }}>
+          {process.id === "celebrate" ? "🏆🎉✨" : process.emoji}
+        </div>
+        {process.id === "celebrate" && (
+          <div style={{ fontSize: "24px", marginBottom: "8px" }}>👏 👏 👏</div>
+        )}
+        <div style={{ fontSize: "20px", color: process.color, fontFamily: "'DM Sans', sans-serif", fontWeight: 700, marginBottom: "12px" }}>
+          {process.id === "celebrate" ? "YOU DID THAT! 🌟" : "Process Complete"}
+        </div>
         <p style={{ fontSize: "15px", color: "#CCCCEE", fontFamily: "'DM Sans', sans-serif", lineHeight: 1.75, margin: 0 }}>{process.completion}</p>
+        {process.id === "celebrate" && (
+          <div style={{ marginTop: "20px", padding: "16px", background: "rgba(255,179,71,0.12)", borderRadius: "14px", border: "1px solid rgba(255,179,71,0.3)" }}>
+            <div style={{ fontSize: "28px", marginBottom: "8px" }}>⭐⭐⭐</div>
+            <p style={{ fontSize: "13px", color: "#FFB347", fontFamily: "'DM Sans', sans-serif", fontWeight: 700, margin: 0, letterSpacing: "1px", textTransform: "uppercase" }}>
+              Achievement Unlocked
+            </p>
+            <p style={{ fontSize: "12px", color: "#AAAACC", fontFamily: "'DM Sans', sans-serif", margin: "6px 0 0" }}>
+              You celebrated yourself today. That changes everything.
+            </p>
+          </div>
+        )}
       </div>
       <button style={C.btn(process.color)} onClick={onBack}>← Back to Library</button>
     </div>
