@@ -1001,7 +1001,7 @@ function Journal({ userId }) {
   const allEntries = [
     ...(entries.map(h => ({ ...h, _type: "process" }))),
     ...(egsEntries.map(h => ({ ...h, _type: "egs" }))),
-  ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  ].sort((a, b) => { const da = a.created_at ? new Date(a.created_at) : new Date(0); const db = b.created_at ? new Date(b.created_at) : new Date(0); return db - da; });
 
   return (
     <div style={C.wrap(v)}>
@@ -1017,21 +1017,21 @@ function Journal({ userId }) {
         </div>
       ) : allEntries.map((entry, i) => {
         if (entry._type === "egs") {
-          const l = entry.level;
+          const l = EGS_LEVELS.find(lv => lv.id === entry.level_id) || { emoji: entry.level_emoji, name: entry.level_name, color: entry.level_color, id: entry.level_id };
           return (
             <div key={`egs-${i}`} style={{ ...C.card(l?.color), marginBottom: "12px" }}>
               <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
                 <span style={{ fontSize: "22px" }}>{l?.emoji}</span>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: "13px", color: l?.color, fontFamily: "'DM Sans', sans-serif", fontWeight: 700 }}>EGS Check-in · {l?.name}</div>
-                  <div style={{ fontSize: "11px", color: "#444466", fontFamily: "'DM Sans', sans-serif", marginTop: "2px" }}>{entry.dateKey} · Level {l?.id}</div>
+                  <div style={{ fontSize: "11px", color: "#444466", fontFamily: "'DM Sans', sans-serif", marginTop: "2px" }}>{new Date(entry.created_at).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} · Level {l?.id}</div>
                 </div>
               </div>
               {entry.journal && <p style={{ fontSize: "13px", color: "#888899", fontFamily: "'DM Sans', sans-serif", fontStyle: "italic", lineHeight: 1.65, margin: "10px 0 0" }}>"{entry.journal.length > 120 ? entry.journal.slice(0, 120) + "…" : entry.journal}"</p>}
             </div>
           );
         }
-        const p = PROCESSES.find(pr => pr.id === entry.processId); if (!p) return null;
+        const p = PROCESSES.find(pr => pr.id === entry.process_id); if (!p) return null;
         const answers = (() => { try { return JSON.parse(entry.answers || "{}"); } catch { return {}; } })();
         const firstAnswer = Object.values(answers)[0] || "";
         return (
@@ -1040,7 +1040,7 @@ function Journal({ userId }) {
               <span style={{ fontSize: "22px" }}>{p.emoji}</span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: "13px", color: p.color, fontFamily: "'DM Sans', sans-serif", fontWeight: 700 }}>{p.name}</div>
-                <div style={{ fontSize: "11px", color: "#444466", fontFamily: "'DM Sans', sans-serif", marginTop: "2px" }}>{new Date(entry.ts).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</div>
+                <div style={{ fontSize: "11px", color: "#444466", fontFamily: "'DM Sans', sans-serif", marginTop: "2px" }}>{new Date(entry.created_at).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</div>
               </div>
             </div>
             {firstAnswer && <p style={{ fontSize: "13px", color: "#888899", fontFamily: "'DM Sans', sans-serif", fontStyle: "italic", lineHeight: 1.65, margin: 0 }}>"{firstAnswer.length > 130 ? firstAnswer.slice(0, 130) + "…" : firstAnswer}"</p>}
