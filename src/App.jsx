@@ -813,7 +813,7 @@ function Home({ user, egsToday, processHistory, visionBoard, onStartCheckin, onO
 
   const egsLevel = egsToday ? EGS_LEVELS.find(l => l.id === egsToday.level_id) : null;
   const week = weekDates();
-  const firstName = user?.user_metadata?.full_name?.split(' ')[0] || '';
+  const firstName = (() => { try { return user?.user_metadata?.full_name?.split(' ')[0] || ''; } catch { return ''; } })();
 
   function getFeatured(level) {
     if (!level) return PROCESSES[0];
@@ -856,18 +856,23 @@ function Home({ user, egsToday, processHistory, visionBoard, onStartCheckin, onO
         <span style={C.lbl()}>This Week</span>
         <div style={{ display: "flex", gap: "6px", justifyContent: "space-between" }}>
           {week.map((date, i) => {
-            const k = dKey(date); const isToday = k === todayKey();
-            const isCheckedIn = egsToday && k === todayKey();
-            const didProcess = processHistory.some(h => h.created_at && new Date(h.created_at).toISOString().split("T")[0] === k);
-            return (
-              <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "5px" }}>
-                <div style={{ fontSize: "10px", color: isToday ? "#F5C842" : "#333355", fontFamily: "'DM Sans', sans-serif" }}>{"SMTWTFS"[date.getDay()]}</div>
-                <div style={{ width: "30px", height: "30px", borderRadius: "50%", background: isCheckedIn ? (egsLevel?.color || "#F5C842") + "CC" : (isToday ? "rgba(245,200,66,0.12)" : "rgba(255,255,255,0.04)"), border: isToday ? "2px solid #F5C842" : "2px solid transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px" }}>
-                  {isCheckedIn ? egsLevel?.emoji : ""}
+            try {
+              const k = dKey(date); const isToday = k === todayKey();
+              const isCheckedIn = egsToday && k === todayKey();
+              const didProcess = processHistory.some(h => {
+                try { return h.created_at && new Date(h.created_at).toISOString().split("T")[0] === k; }
+                catch { return false; }
+              });
+              return (
+                <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "5px" }}>
+                  <div style={{ fontSize: "10px", color: isToday ? "#F5C842" : "#333355", fontFamily: "'DM Sans', sans-serif" }}>{"SMTWTFS"[date.getDay()]}</div>
+                  <div style={{ width: "30px", height: "30px", borderRadius: "50%", background: isCheckedIn ? (egsLevel?.color || "#F5C842") + "CC" : (isToday ? "rgba(245,200,66,0.12)" : "rgba(255,255,255,0.04)"), border: isToday ? "2px solid #F5C842" : "2px solid transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px" }}>
+                    {isCheckedIn ? egsLevel?.emoji : ""}
+                  </div>
+                  {didProcess && <div style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#F5C842" }} />}
                 </div>
-                {didProcess && <div style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#F5C842" }} />}
-              </div>
-            );
+              );
+            } catch { return <div key={i} style={{ flex: 1 }} />; }
           })}
         </div>
         <p style={{ fontSize: "11px", color: "#333355", fontFamily: "'DM Sans', sans-serif", margin: "10px 0 0", textAlign: "center" }}>Colored circles = check-in · gold dot = process completed</p>
@@ -897,7 +902,7 @@ function Home({ user, egsToday, processHistory, visionBoard, onStartCheckin, onO
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: "15px", color: "#F9A03F", fontFamily: "'DM Sans', sans-serif", fontWeight: 700, marginBottom: "3px" }}>Vision Board</div>
             <div style={{ fontSize: "13px", color: "#666688", fontFamily: "'DM Sans', sans-serif" }}>
-              {VISION_CATEGORIES.filter(c => (visionBoard[c.id]?.images?.length > 0) || visionBoard[c.id]?.text?.trim()).length} of 5 sections built
+              {(() => { try { return VISION_CATEGORIES.filter(c => (visionBoard[c.id]?.images?.length > 0) || visionBoard[c.id]?.text?.trim()).length; } catch { return 0; } })()} of 5 sections built
             </div>
           </div>
           <span style={{ color: "#F9A03F", fontSize: "18px" }}>→</span>
