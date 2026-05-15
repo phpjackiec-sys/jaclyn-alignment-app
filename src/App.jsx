@@ -756,12 +756,34 @@ function VisionCategory({ cat, data, userId, onSave, onBack }) {
   );
 }
 
-function VisionBoard({ userId, visionBoard: board, onSave }) {
+function VisionBoard({ userId, visionBoard: initialBoard, onSave }) {
   const [active, setActive] = useState(null);
+  const [board, setBoard] = useState(initialBoard || {});
   const [v, setV] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setV(true), 40); return () => clearTimeout(t); }, []);
 
-  if (active) return <VisionCategory cat={active} data={board[active.id] || {}} userId={userId} onSave={(catId, d) => { const next = { ...board, [catId]: d }; setBoard(next); }} onBack={() => setActive(null)} />;
+  useEffect(() => {
+    const t = setTimeout(() => setV(true), 40);
+    // Load fresh from Supabase every time Vision tab opens
+    async function load() {
+      const { data } = await supabase.from("vision_board").select("*").eq("user_id", userId);
+      if (data) {
+        const b = {};
+        data.forEach(row => { b[row.category_id] = { images: JSON.parse(row.images || "[]"), text: row.text || "" }; });
+        setBoard(b);
+        onSave && Object.entries(b).forEach(([catId, d]) => onSave(catId, d));
+      }
+    }
+    load();
+    return () => clearTimeout(t);
+  }, []);
+
+  function handleCatSave(catId, d) {
+    const next = { ...board, [catId]: d };
+    setBoard(next);
+    onSave && onSave(catId, d);
+  }
+
+  if (active) return <VisionCategory cat={active} data={board[active.id] || {}} userId={userId} onSave={handleCatSave} onBack={() => setActive(null)} />;
 
   const totalImgs = VISION_CATEGORIES.reduce((a, c) => a + (board[c.id]?.images?.length || 0), 0);
   const totalText = VISION_CATEGORIES.filter(c => board[c.id]?.text?.trim()).length;
