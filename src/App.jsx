@@ -689,16 +689,28 @@ function UploadZone({ onUpload, color, count, max }) {
   );
 }
 
-function VisionCategory({ cat, data, onSave, onBack }) {
+function VisionCategory({ cat, data, userId, onSave, onBack }) {
   const [images, setImages] = useState(data.images || []);
   const [text, setText] = useState(data.text || "");
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [v, setV] = useState(false);
   useEffect(() => { const t = setTimeout(() => setV(true), 40); return () => clearTimeout(t); }, []);
 
-  function handleUpload(imgs) { const next = [...images, ...imgs].slice(0, 6); setImages(next); onSave({ images: next, text }); }
-  function handleDelete(idx) { const next = images.filter((_, i) => i !== idx); setImages(next); onSave({ images: next, text }); }
-  function handleSaveText() { onSave({ images, text }); setSaved(true); setTimeout(() => setSaved(false), 2000); }
+  async function persist(newImages, newText) {
+    setSaveError("");
+    const { error } = await supabase.from("vision_board").upsert(
+      { user_id: userId, category_id: cat.id, images: JSON.stringify(newImages), text: newText, updated_at: new Date().toISOString() },
+      { onConflict: "user_id,category_id" }
+    );
+    if (error) { console.error("Vision board save error:", error); setSaveError("Couldn't save — please try again."); return false; }
+    onSave(cat.id, { images: newImages, text: newText });
+    return true;
+  }
+
+  async function handleUpload(imgs) { const next = [...images, ...imgs].slice(0, 6); setImages(next); await persist(next, text); }
+  async function handleDelete(idx) { const next = images.filter((_, i) => i !== idx); setImages(next); await persist(next, text); }
+  async function handleSaveText() { const ok = await persist(images, text); if (ok) { setSaved(true); setTimeout(() => setSaved(false), 2200); } }
 
   return (
     <div style={C.wrap(v)}>
@@ -720,14 +732,15 @@ function VisionCategory({ cat, data, onSave, onBack }) {
           </div>
         )}
         <UploadZone onUpload={handleUpload} color={cat.color} count={images.length} max={6} />
-        <p style={{ fontSize: "11px", color: "#333355", fontFamily: "'DM Sans', sans-serif", textAlign: "center", margin: "8px 0 0" }}>Saved to your browser · persists between visits</p>
+        <p style={{ fontSize: "11px", color: "#333355", fontFamily: "'DM Sans', sans-serif", textAlign: "center", margin: "8px 0 0" }}>Saved to your account · accessible on any device</p>
       </div>
 
       <div style={C.card(cat.color)}>
         <span style={C.lbl(cat.color)}>✍️ Written Vision</span>
         <p style={{ fontSize: "13px", color: "#7777AA", fontFamily: "'DM Sans', sans-serif", lineHeight: 1.65, margin: "0 0 12px" }}>Write in present tense, as if it's already real.</p>
         <textarea style={C.ta} rows={5} placeholder={cat.prompt} value={text} onChange={e => setText(e.target.value)} />
-        <button style={C.btn(cat.color)} onClick={handleSaveText}>{saved ? "✓ Saved" : "Save Written Vision"}</button>
+        {saveError && <p style={{ fontSize: "12px", color: "#D45A4A", fontFamily: "'DM Sans', sans-serif", margin: "8px 0 0" }}>{saveError}</p>}
+        <button style={C.btn(cat.color)} onClick={handleSaveText}>{saved ? "✓ Saved!" : "Save Written Vision"}</button>
       </div>
 
       {images.length > 0 && text && (
@@ -748,7 +761,7 @@ function VisionBoard({ userId, visionBoard: board, onSave }) {
   const [v, setV] = useState(false);
   useEffect(() => { const t = setTimeout(() => setV(true), 40); return () => clearTimeout(t); }, []);
 
-  if (active) return <VisionCategory cat={active} data={board[active.id] || {}} userId={userId} onSave={async (catId, d) => { onSave(catId, d); await supabase.from('vision_board').upsert({ user_id: userId, category_id: catId, images: JSON.stringify(d.images || []), text: d.text || '', updated_at: new Date().toISOString() }, { onConflict: 'user_id,category_id' }); }} onBack={() => setActive(null)} />;
+  if (active) return <VisionCategory cat={active} data={board[active.id] || {}} userId={userId} onSave={(catId, d) => { const next = { ...board, [catId]: d }; setBoard(next); }} onBack={() => setActive(null)} />;
 
   const totalImgs = VISION_CATEGORIES.reduce((a, c) => a + (board[c.id]?.images?.length || 0), 0);
   const totalText = VISION_CATEGORIES.filter(c => board[c.id]?.text?.trim()).length;
